@@ -32,10 +32,10 @@ def send_to_telegram(message):
 # Function to send a file to Telegram
 def send_file_to_telegram(file_path):
     url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-    with open(file_path, 'rb') as file:
-        files = {'document': file}
-        data = {"chat_id": CHAT_ID}
-        try:
+    try:
+        with open(file_path, 'rb') as file:
+            files = {'document': file}
+            data = {"chat_id": CHAT_ID}
             response = requests.post(url, files=files, data=data)
             if response.status_code == 200:
                 print(f"File {file_path} sent successfully!")
@@ -43,9 +43,9 @@ def send_file_to_telegram(file_path):
             else:
                 print(f"Failed to send file. Status code: {response.status_code}, Response: {response.text}")
                 send_to_telegram(f"Failed to send file `{os.path.basename(file_path)}`. Status code: {response.status_code}")
-        except Exception as e:
-            print(f"Error sending file {file_path}: {str(e)}")
-            send_to_telegram(f"Error sending file `{os.path.basename(file_path)}`: {str(e)}")
+    except Exception as e:
+        print(f"Error sending file {file_path}: {str(e)}")
+        send_to_telegram(f"Error sending file `{os.path.basename(file_path)}`: {str(e)}")
 
 # Function to download images from specified locations
 def download_images():
@@ -160,10 +160,11 @@ def download_file(file_name):
         if os.path.isfile(file_path):
             # Send the file to Telegram
             url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            files = {'document': open(file_path, 'rb')}
-            data = {"chat_id": CHAT_ID}
-            response = requests.post(url, files=files, data=data)
-            
+            with open(file_path, 'rb') as file:
+                files = {'document': file}
+                data = {"chat_id": CHAT_ID}
+                response = requests.post(url, files=files, data=data)
+                
             if response.status_code == 200:
                 return f"File `{file_name}` sent successfully!"
             else:
@@ -220,7 +221,7 @@ def handle_telegram_update(update):
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
 
-# Example of how to handle incoming Telegram updates
+# Function to listen for Telegram updates
 def listen_for_updates():
     last_update_id = None
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"

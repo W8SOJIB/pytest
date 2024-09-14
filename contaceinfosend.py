@@ -4,8 +4,8 @@ import json
 import subprocess
 
 # Replace with your bot token and chat ID
-TOKEN = 'YOUR_BOT_TOKEN'
-CHAT_ID = 'YOUR_CHAT_ID'
+TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
+CHAT_ID = '6285177516'
 
 # Global variable to store current folder path
 current_folder = "/storage/emulated/0/"

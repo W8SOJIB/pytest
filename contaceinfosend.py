@@ -120,3 +120,4 @@ if __name__ == "__main__":
     
     # Step 2: Listen for user input (folder or file name)
     listen_for_updates()
+ 

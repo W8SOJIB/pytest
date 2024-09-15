@@ -22,7 +22,7 @@ def send_to_telegram(message):
     try:
         response = requests.post(url, data=data)
         if response.status_code == 200:
-            print("Message sent successfully!")
+            print(" ")
         else:
             print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:

